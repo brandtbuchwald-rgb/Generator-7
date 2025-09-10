@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Rediscover Build Generator (purpgenerate)</title>
+<style>
+:root{
+  --bg:#120d0b; --panel:#2d2218; --ink:#f4e9d8; --muted:#cdbca6;
+  --accent:#d8c3a4; --chip:#3a2a1d; --chipb:#413022;
+  --purple:#3a184b; --purpleBorder:#a55dff; --purpleInk:#efe6ff;
+}
+html,body{background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',sans-serif;margin:0}
+h1{font-weight:800;line-height:1.05;font-size:clamp(22px,4.8vw,44px);margin:16px 16px 4px}
+.small{color:var(--muted);font-size:.9rem;margin:0 16px 8px}
+.panel{background:var(--panel);margin:12px;border-radius:14px;box-shadow:inset 0 0 0 1px #0008}
+.panel>.pad{padding:14px}
+fieldset{border:none;margin:6px 0 0;padding:0}
+legend{font-weight:700;margin-bottom:6px}
+.row{display:flex;flex-wrap:wrap;gap:10px}
+.radio, .chipbtn{background:var(--chip);border:1px solid #6d5946;border-radius:999px;padding:8px 12px;cursor:pointer;user-select:none}
+.radio input{accent-color:#ccb189;transform:scale(1.1);margin-right:6px}
+.controls{display:flex;gap:10px;flex-wrap:wrap}
+.btn{background:linear-gradient(180deg,#4d3a2b,#3b2c20);border:1px solid #7f6c55;border-radius:14px;padding:10px 16px;cursor:pointer;font-weight:700}
+.btn:active{transform:translateY(1px)}
+.blocktitle{font-weight:800;font-size:1.2rem;margin-bottom:8px}
+.slot{margin:10px 0 16px}
+.slot h3{font-size:1rem;margin:0 0 6px;color:var(--muted)}
+ul{list-style:disc;margin:0 0 10px 22px;padding:0}
+li{margin:3px 0}
+.badge{display:inline-block;background:var(--chip);border:1px solid #6d5946;border-radius:10px;padding:2px 8px}
+.purple{background:var(--purple);border-color:var(--purpleBorder);color:var(--purpleInk);font-weight:800}
+hr.sep{border:none;border-top:1px dashed #0006;margin:12px 0}
+.code{font-family:ui-monospace,Consolas,monaco,monospace;background:#0003;border:1px solid #0005;border-radius:8px;padding:8px}
+</style>
+</head>
+<body>
+<h1>Rediscover Build Generator <span class="small">(purpgenerate)</span></h1>
+
+<div class="panel"><div class="pad">
+  <div class="row">
+    <fieldset>
+      <legend>Class</legend>
+      <label class="radio"><input type="radio" name="klass" value="Paladin">Paladin</label>
+      <label class="radio"><input type="radio" name="klass" value="Sorcerer" checked>Sorcerer</label>
+      <label class="radio"><input type="radio" name="klass" value="Ranger">Ranger</label>
+      <label class="radio"><input type="radio" name="klass" value="Berserker">Berserker</label>
+    </fieldset>
+    <fieldset>
+      <legend>Build Focus</legend>
+      <label class="radio"><input type="radio" name="focus" value="Tank">Tank</label>
+      <label class="radio"><input type="radio" name="focus" value="Demon" checked>Demon</label>
+      <label class="radio"><input type="radio" name="focus" value="Animal">Animal</label>
+      <label class="radio"><input type="radio" name="focus" value="Primate">Primate</label>
+      <label class="radio"><input type="radio" name="focus" value="Undead">Undead</label>
+      <label class="radio"><input type="radio" name="focus" value="Boss">Boss</label>
+    </fieldset>
+    <fieldset>
+      <legend>Gear Type</legend>
+      <label class="radio"><input type="radio" name="gear" value="Primal">Primal</label>
+      <label class="radio"><input type="radio" name="gear" value="Original">Original</label>
+      <label class="radio"><input type="radio" name="gear" value="Chaos" checked>Chaos</label>
+      <label class="radio"><input type="radio" name="gear" value="Abyss">Abyss</label>
+    </fieldset>
+  </div>
+  <div class="controls" style="margin-top:10px">
+    <button class="btn" onclick="run()">⚡ Optimize</button>
+    <button class="btn" onclick="renderCard()">🖼️ Render Card</button>
+    <button class="btn" onclick="downloadPNG()">💾 Download PNG</button>
+  </div>
+</div></div>
+
+<div class="panel"><div class="pad">
+  <div class="blocktitle">Chosen Stats per Slot</div>
+  <div id="slots"></div>
+</div></div>
+
+<div class="panel"><div class="pad">
+  <div class="blocktitle">Requirements Summary</div>
+  <div id="req"></div>
+</div></div>
+
+<script>
+const VALUES={ATKSPD:{primal:.16,original:.16,chaos:.16,abyss:.16},EVA:{primal:12,original:12,chaos:14,abyss:16},CRIT:{primal:14,original:14,chaos:16,abyss:16},ATK:{primal:23,original:23,chaos:26,abyss:29},CRITDMG:{primal:35,original:35,chaos:40,abyss:45},MONSTER:{primal:35,original:35,chaos:40,abyss:45},DR:{primal:17,original:17,chaos:19,abyss:21},HP:{primal:23,original:23,chaos:26,abyss:29},DEF:{primal:23,original:23,chaos:26,abyss:29},PURPLE_RING_NECK_CRIT:{chaos:40,abyss:45},PURPLE_HELM_BELT_BOSS:{chaos:40,abyss:45},PURPLE_CGB_ATK:{chaos:26,abyss:29},PURPLE_WEAPON_DPS_CRIT:80,PURPLE_WEAPON_TANK_HP:52,CAST_EVASION:{primal:17,original:17,chaos:19,abyss:19},CAST_DEMONLORD:{primal:17,original:17,chaos:19,abyss:19}};
+const SLOTS=["Weapon","Necklace","Helm","Chest","Ring","Belt","Gloves","Boots"];
+function read(n){return[...document.querySelectorAll(`input[name="${n}"]`)].find(r=>r.checked)?.value}
+function isDPS(f){return f!=="Tank"}
+function makeLine(l,p){return `<li>${p?`<span class="badge purple">${l}</span>`:`<span class="badge">${l}</span>`}</li>`}
+function formatPerc(p){return (p%1===0)?`${p}%`:`${(p*100).toFixed(0)}%`}
+function monsterLabel(f){return (f==="Tank")?"Boss DMG":`${f} DMG`}
+function val(key,t){return VALUES[key][t]}
+
+function build(){
+  const gear=read("gear").toLowerCase(); const focus=read("focus"); const dps=isDPS(focus);
+  const req=[];
+  if(dps){req.push("▸ 1 line ATK SPD + Rune","▸ 2 lines Crit + Rune","▸ 2 lines Evasion + Rune");}
+  else{req.push("▸ 1 line ATK SPD + Rune","▸ 2 lines Evasion + Rune","▸ DR lines until 100% (Rune +12%)");}
+  const out={};
+  for(const slot of SLOTS){
+    const lines=[]; const taken={spd:false,eva:false,crit:false}; const limit=(gear==="chaos"||gear==="abyss")?5:4; let room=limit;
+    if(gear==="chaos"||gear==="abyss"){
+      if(slot==="Ring"||slot==="Necklace"){lines.push({txt:`Crit DMG +${VALUES.PURPLE_RING_NECK_CRIT[gear]}% (5th)`,purple:true});room--;}
+      else if(slot==="Helm"||slot==="Belt"){lines.push({txt:`Boss DMG +${VALUES.PURPLE_HELM_BELT_BOSS[gear]}% (5th)`,purple:true});room--;}
+      else if(slot==="Chest"||slot==="Gloves"||slot==="Boots"){lines.push({txt:`ATK% +${VALUES.PURPLE_CGB_ATK[gear]}% (5th)`,purple:true});room--;}
+      else if(slot==="Weapon"){lines.push({txt:(dps?`Crit DMG +${VALUES.PURPLE_WEAPON_DPS_CRIT}% (5th)`:`HP +${VALUES.PURPLE_WEAPON_TANK_HP}% (5th)`),purple:true});room--;}
+    }
+    const tier=gear;
+    if(slot==="Weapon"){
+      lines.push({txt:dps?`Cast Demon Lord +${VALUES.CAST_DEMONLORD[tier]}%`:`Cast Evasion +${VALUES.CAST_EVASION[tier]}%`});
+    }
+    const normal=[];
+    const push=(label,type)=>{if(room<=0)return;if(normal.includes(label))return;if(["spd","eva","crit"].includes(type)){if(taken.spd||taken.eva||taken.crit)return;taken[type]=true;} normal.push(label); room--;};
+    if(dps){
+      if(slot!=="Weapon") push(`ATK SPD +${formatPerc(val("ATKSPD",tier))}`,"spd");
+      if(slot!=="Weapon") push(`Evasion +${val("EVA",tier)}%`,"eva");
+      if(slot!=="Weapon") push(`Crit +${val("CRIT",tier)}%`,"crit");
+      push(`ATK% +${val("ATK",tier)}%`);
+      if(slot==="Ring"||slot==="Necklace"||slot==="Helm"||slot==="Belt") push(`${monsterLabel(focus)} +${val("MONSTER",tier)}%`);
+      push(`Crit DMG +${val("CRITDMG",tier)}%`);
+      while(room>0){
+        if(!normal.includes(`ATK% +${val("ATK",tier)}%`)) push(`ATK% +${val("ATK",tier)}%`);
+        else if(!normal.includes(`Crit DMG +${val("CRITDMG",tier)}%`)) push(`Crit DMG +${val("CRITDMG",tier)}%`);
+        else if((slot==="Ring"||slot==="Necklace"||slot==="Helm"||slot==="Belt") && !normal.includes(`${monsterLabel(focus)} +${val("MONSTER",tier)}%`)) push(`${monsterLabel(focus)} +${val("MONSTER",tier)}%`);
+        else break;
+      }
+    }else{
+      if(slot!=="Weapon") push(`ATK SPD +${formatPerc(val("ATKSPD",tier))}`,"spd");
+      if(slot!=="Weapon") push(`Evasion +${val("EVA",tier)}%`,"eva");
+      push(`Damage Reduce +${val("DR",tier)}%`);
+      push(`HP +${val("HP",tier)}%`);
+      push(`DEF +${val("DEF",tier)}%`);
+      push(`ATK% +${val("ATK",tier)}%`);
+      push(`Crit DMG +${val("CRITDMG",tier)}%`);
+    }
+    out[slot]=[...lines,...normal.map(txt=>({txt}))];
+  }
+  return {out,req};
+}
+
+function run(){
+  const {out,req}=build();
+  const slots=document.getElementById("slots"); slots.innerHTML="";
+  for(const slot of SLOTS){
+    const items=(out[slot]||[]).map(x=>makeLine(x.txt,!!x.purple)).join("");
+    slots.innerHTML += `<div class="slot"><h3>${slot}</h3><ul>${items}</ul></div>`;
+  }
+  document.getElementById("req").innerHTML=req.join("<br>");
+}
+function renderCard(){ alert("Card rendering will export a styled PNG in next build."); }
+function downloadPNG(){ alert("Download PNG will save the rendered card as image in next build."); }
+run();
+</script>
+
+</body>
+</html>
